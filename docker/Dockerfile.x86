@@ -1,10 +1,12 @@
-FROM arm64v8/ros:kinetic-perception
+FROM ros:kinetic-perception
 
 ENV CERES_VERSION="1.12.0"
 ENV CATKIN_WS=/root/catkin_ws
 
       # set up thread number for building
-RUN   apt-get update && apt-get install -y \
+RUN   if [ "x$(nproc)" = "x1" ] ; then export USE_PROC=1 ; \
+      else export USE_PROC=$(($(nproc)/2)) ; fi && \
+      apt-get update && apt-get install -y \
       cmake \
       libatlas-base-dev \
       libeigen3-dev \
@@ -22,7 +24,7 @@ RUN   apt-get update && apt-get install -y \
       git checkout tags/${CERES_VERSION} && \
       mkdir build && cd build && \
       cmake .. && \
-      make -j4 install && \
+      make -j$(USE_PROC) install && \
       rm -rf ../../ceres-solver && \
       mkdir -p $CATKIN_WS/src/VINS-Fusion/
 
@@ -35,12 +37,10 @@ COPY ./ $CATKIN_WS/src/VINS-Fusion/
 WORKDIR $CATKIN_WS
 ENV TERM xterm
 ENV PYTHONIOENCODING UTF-8
-RUN rm /usr/lib/python2.7/pty.py
-RUN rm /usr/lib/python2.7/pty.pyc
 RUN catkin config \
       --extend /opt/ros/$ROS_DISTRO \
       --cmake-args \
         -DCMAKE_BUILD_TYPE=Release && \
-    catkin build -j1 && \
+    catkin build && \
     sed -i '/exec "$@"/i \
             source "/root/catkin_ws/devel/setup.bash"' /ros_entrypoint.sh
